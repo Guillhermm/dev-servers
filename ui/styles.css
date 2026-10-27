@@ -1,0 +1,151 @@
+:root {
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --text: #1d1d1f;
+  --muted: #6e6e73;
+  --line: #d9d9de;
+  --accent: #0a64d8;
+  --ok: #1f9d55;
+  --off: #9a9aa2;
+  --warn: #b7791f;
+  --bad: #d13b3b;
+  --warn-bg: #fdf3dc;
+  --bad-bg: #fbe4e4;
+  --chip: #ececf0;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1e;
+    --surface: #2a2a2d;
+    --text: #f2f2f4;
+    --muted: #9b9ba3;
+    --line: #3d3d42;
+    --accent: #4c9bff;
+    --ok: #38c172;
+    --off: #6b6b73;
+    --warn: #e0a64a;
+    --bad: #ff6b6b;
+    --warn-bg: #3a3020;
+    --bad-bg: #3d2325;
+    --chip: #38383d;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 0.8125rem/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+h1 { margin: 0; font-size: 1rem; font-weight: 600; }
+.summary { color: var(--muted); }
+#query {
+  margin-left: auto;
+  min-width: 10rem;
+  flex: 0 1 16rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.toggle { display: flex; align-items: center; gap: 0.35rem; color: var(--muted); white-space: nowrap; }
+.notice {
+  margin: 0.75rem 1rem 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--warn-bg);
+  color: var(--text);
+  border: 1px solid var(--warn);
+}
+.notice[data-kind="error"] { background: var(--bad-bg); border-color: var(--bad); }
+.notice[data-kind="info"] { background: var(--chip); border-color: var(--line); }
+main { padding: 0.75rem 1rem 1.5rem; }
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  overflow: hidden;
+}
+.row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 0.75rem;
+  border-top: 1px solid var(--line);
+}
+.row:first-child { border-top: 0; }
+.dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--off); }
+.state-running .dot { background: var(--ok); }
+.state-conflict .dot { background: var(--bad); }
+.state-foreign .dot { background: var(--warn); }
+.main { min-width: 0; }
+.title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; }
+.name { font-weight: 600; }
+.port, .process, pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.75rem;
+}
+.port { color: var(--muted); }
+.notes, .process { color: var(--muted); font-size: 0.75rem; overflow-wrap: anywhere; }
+.badge {
+  padding: 0 0.4rem;
+  border-radius: 0.6rem;
+  background: var(--chip);
+  color: var(--muted);
+  font-size: 0.6875rem;
+}
+.badge-conflict { background: var(--bad-bg); color: var(--bad); }
+.badge-foreign { background: var(--warn-bg); color: var(--warn); }
+.actions { display: flex; gap: 0.3rem; }
+.btn {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.btn:focus-visible, #query:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn-danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+.btn-danger:hover:not(:disabled) { color: #fff; filter: brightness(1.1); }
+.empty { padding: 1rem; color: var(--muted); text-align: center; }
+dialog {
+  max-width: 28rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  color: var(--text);
+}
+dialog::backdrop { background: rgb(0 0 0 / 0.4); }
+dialog h2 { margin: 0 0 0.5rem; font-size: 0.9375rem; }
+dialog pre { margin: 0.5rem 0; padding: 0.5rem; border-radius: 0.4rem; background: var(--chip); white-space: pre-wrap; overflow-wrap: anywhere; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+@media (max-width: 40rem) {
+  .row { grid-template-columns: auto 1fr; }
+  .actions { grid-column: 2; flex-wrap: wrap; }
+  #query { margin-left: 0; flex: 1 1 100%; }
+}

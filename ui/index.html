@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="color-scheme" content="light dark">
+<title>Dev Servers</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="bar">
+  <h1>Dev Servers</h1>
+  <span id="summary" class="summary" aria-live="polite"></span>
+  <input id="query" type="search" placeholder="Filter by name, port or note" aria-label="Filter servers" autocomplete="off">
+  <label class="toggle"><input id="running-only" type="checkbox"> Running only</label>
+</header>
+<p id="notice" class="notice" role="status" hidden></p>
+<main>
+  <ul id="list" class="list"></ul>
+</main>
+<dialog id="stop-dialog">
+  <form method="dialog">
+    <h2>Stop a process this app did not start?</h2>
+    <p><span data-slot="name"></span> is listening on its port, held by PID <strong data-slot="pid"></strong>:</p>
+    <pre data-slot="command"></pre>
+    <div class="dialog-actions">
+      <button class="btn" value="cancel">Cancel</button>
+      <button class="btn btn-danger" value="confirm">Stop it</button>
+    </div>
+  </form>
+</dialog>
+<script type="module" src="app.js"></script>
+</body>
+</html>

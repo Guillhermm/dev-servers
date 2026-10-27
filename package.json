@@ -1,0 +1,8 @@
+{
+  "name": "dev-servers-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}
