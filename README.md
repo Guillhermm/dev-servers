@@ -9,7 +9,9 @@ WKWebView; the page in `ui/` talks to it through a native message bridge.
 - `node --test`: UI logic and registry checks.
 - `swift test`: the Swift core (Package.swift, Sources/, Tests/).
 - `tools/build_app.sh`: builds `build/Dev Servers.app`, signs it ad hoc and links it into
-  `~/Applications`. The bundle reads `ui/` and `registry.json` from this repo at run time.
+  `~/Applications`. The bundle reads `ui/` and `registry.json` from this repo at run time; the
+  window loads the page from `devservers://app/index.html`, a scheme the app serves from `ui/`,
+  because WebKit will not run module scripts on a `file://` page.
 - Opening `ui/index.html` in a plain browser shows a notice and the static registry list, with
   actions disabled. Serve the repo root (`python3 -m http.server 8497`) so `registry.json` can be
   fetched; from `file://` the list is empty.
@@ -52,4 +54,4 @@ When `registry.json` is invalid, every action, `list` and `status` included, ret
 
 The page sends only an id and an action. `confirmStop` must carry the `pid` that was shown, and
 is refused when the listener on the port is no longer that pid. Only the app's own
-`ui/index.html`, in the main frame, can reach the bridge.
+page, `devservers://app/index.html` in the main frame, can reach the bridge.

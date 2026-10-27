@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         let cfg = WKWebViewConfiguration()
         cfg.userContentController.addScriptMessageHandler(
             Bridge(service: service), contentWorld: .page, name: Bridge.name)
+        cfg.setURLSchemeHandler(UISchemeHandler(root: Paths.ui), forURLScheme: UIAssets.scheme)
 
         web = WKWebView(frame: .zero, configuration: cfg)
         web.navigationDelegate = self
@@ -49,7 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
                 baseURL: nil)
             return
         }
-        web.loadFileURL(Paths.page, allowingReadAccessTo: Paths.repo.appendingPathComponent("ui"))
+        web.load(URLRequest(url: UIAssets.pageURL))
     }
 
     @objc func reload() {
@@ -60,8 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     func webView(_ w: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let u = action.request.url else { return decisionHandler(.cancel) }
-        if u.absoluteString == "about:blank"
-            || (u.isFileURL && u.standardizedFileURL.path == Paths.page.standardizedFileURL.path) {
+        if u.absoluteString == "about:blank" || UIAssets.isPage(u) {
             return decisionHandler(.allow)
         }
         if action.navigationType == .linkActivated, u.scheme == "http" || u.scheme == "https" {

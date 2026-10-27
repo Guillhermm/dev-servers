@@ -34,7 +34,9 @@ Astro (4321) defaults still shared by a few projects until each moves; new ones 
   server behind `npm run` is recognized.
 - **Status**: one `lsof -nP -iTCP -sTCP:LISTEN -a -u $UID -F pcn` per poll (every 2 s, paused when
   hidden), matched to registered ports.
-- **UI**: plain HTML and ES modules in `ui/`, DOM built with `textContent`, strict CSP.
+- **UI**: plain HTML and ES modules in `ui/`, DOM built with `textContent`, strict CSP. The window
+  loads it from `devservers://app/` (a `WKURLSchemeHandler` over `ui/`, no path outside it), never
+  `file://`, where WebKit refuses module scripts; only that page may call the bridge.
 - **Packaging**: `tools/build_app.sh` builds `build/Dev Servers.app` (gitignored), signs ad hoc and
   links it into `~/Applications`.
 

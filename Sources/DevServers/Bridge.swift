@@ -12,8 +12,8 @@ final class Bridge: NSObject, WKScriptMessageHandlerWithReply {
     func userContentController(_ controller: WKUserContentController,
                                didReceive message: WKScriptMessage) async -> (Any?, String?) {
         // Only the app's own page may drive the bridge.
-        guard message.frameInfo.isMainFrame, let url = message.frameInfo.request.url, url.isFileURL,
-              url.standardizedFileURL.path == Paths.page.standardizedFileURL.path else {
+        guard message.frameInfo.isMainFrame, let url = message.frameInfo.request.url,
+              UIAssets.isPage(url) else {
             return (nil, "forbidden")
         }
         guard let body = message.body as? [String: Any] else { return (nil, "bad message") }

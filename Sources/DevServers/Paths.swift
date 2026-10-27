@@ -18,5 +18,6 @@ enum Paths {
         return repo.appendingPathComponent("registry.json")
     }()
 
-    static let page = repo.appendingPathComponent("ui/index.html")
+    static let ui = repo.appendingPathComponent("ui")
+    static let page = ui.appendingPathComponent("index.html")
 }
