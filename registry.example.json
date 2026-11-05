@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "servers": [
+    {
+      "id": "my-static-site",
+      "name": "My Static Site",
+      "path": "/Users/you/projects/my-static-site",
+      "cwd": "/Users/you/projects/my-static-site",
+      "port": 8401,
+      "host": "127.0.0.1",
+      "start": ["python3", "-m", "http.server", "8401", "--bind", "127.0.0.1"],
+      "env": {},
+      "url": "http://127.0.0.1:8401/",
+      "health": { "type": "tcp" },
+      "managed": true,
+      "notes": "Plain static files."
+    },
+    {
+      "id": "my-vite-app",
+      "name": "My Vite App",
+      "path": "/Users/you/projects/my-vite-app",
+      "cwd": "/Users/you/projects/my-vite-app",
+      "port": 8402,
+      "host": "127.0.0.1",
+      "start": ["npm", "run", "dev", "--", "--port", "8402", "--strictPort", "--host", "127.0.0.1"],
+      "env": {},
+      "url": "http://127.0.0.1:8402/",
+      "health": { "type": "tcp" },
+      "managed": true,
+      "notes": "Vite dev server, pinned to its own port."
+    },
+    {
+      "id": "my-api",
+      "name": "My API",
+      "path": "/Users/you/projects/my-api",
+      "cwd": "/Users/you/projects/my-api/backend",
+      "port": 8403,
+      "host": "127.0.0.1",
+      "start": ["python3", "-m", "uvicorn", "main:app", "--port", "8403"],
+      "env": { "APP_ENV": "development" },
+      "url": "http://127.0.0.1:8403/docs",
+      "health": { "type": "tcp" },
+      "managed": true,
+      "notes": "FastAPI backend; cwd is a subfolder of path."
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama",
+      "path": "/opt/homebrew",
+      "cwd": "/opt/homebrew",
+      "port": 11434,
+      "host": "127.0.0.1",
+      "start": ["brew", "services", "start", "ollama"],
+      "env": {},
+      "url": "http://127.0.0.1:11434/",
+      "health": { "type": "tcp" },
+      "managed": false,
+      "notes": "Runs as a Homebrew service: shown, never stopped by the app."
+    }
+  ]
+}

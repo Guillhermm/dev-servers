@@ -41,18 +41,22 @@ public enum Spawner {
     /// stdin on /dev/null and stdout and stderr on the log.
     public static func spawn(_ plan: LaunchPlan, log: URL) throws -> Int32 {
         let fm = FileManager.default
-        try fm.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
+        // Servers print tokens and keys to their logs often enough that only the user may read them.
+        try fm.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true,
+                               attributes: [.posixPermissions: 0o700])
+        try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: log.deletingLastPathComponent().path)
         let rotated = URL(fileURLWithPath: log.path + ".1")
         if fm.fileExists(atPath: log.path) {
             try? fm.removeItem(at: rotated)
             try fm.moveItem(at: log, to: rotated)
+            try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: rotated.path)
         }
 
         var actions: posix_spawn_file_actions_t?
         posix_spawn_file_actions_init(&actions)
         defer { posix_spawn_file_actions_destroy(&actions) }
         posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
-        posix_spawn_file_actions_addopen(&actions, 1, log.path, O_WRONLY | O_CREAT | O_TRUNC, 0o644)
+        posix_spawn_file_actions_addopen(&actions, 1, log.path, O_WRONLY | O_CREAT | O_TRUNC, 0o600)
         posix_spawn_file_actions_adddup2(&actions, 1, 2)
 
         var attr: posix_spawnattr_t?

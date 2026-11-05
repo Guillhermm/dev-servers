@@ -70,10 +70,55 @@ export const renderSummary = (node, summary) => {
     (summary.conflicts ? `, ${summary.conflicts} sharing a port` : '');
 };
 
-export const showNotice = (node, text, kind = 'info') => {
-  node.textContent = text;
-  node.dataset.kind = kind;
-  node.hidden = text === '';
+// The footer holds a short stack of notices, newest last. Only info notices fade on their own.
+const MAX_NOTICES = 4;
+const AUTO_HIDE_MS = 6000;
+
+export const pushNotice = (root, { key, kind = 'info', text, log = [], onShowLog }) => {
+  const doc = root.ownerDocument;
+  if (key) root.querySelector(`[data-key="${CSS.escape(key)}"]`)?.remove();
+  const item = el(doc, 'div', 'toast');
+  item.dataset.kind = kind;
+  if (key) item.dataset.key = key;
+  item.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+
+  const body = el(doc, 'div', 'toast-body');
+  body.append(el(doc, 'p', 'toast-text', text));
+  if (log.length) body.append(el(doc, 'pre', 'toast-log', log.join('\n')));
+
+  const actions = el(doc, 'div', 'toast-actions');
+  if (onShowLog) {
+    const show = el(doc, 'button', 'btn btn-log', 'Show log');
+    show.type = 'button';
+    show.addEventListener('click', onShowLog);
+    actions.append(show);
+  }
+  const close = el(doc, 'button', 'toast-close', '\u00d7');
+  close.type = 'button';
+  close.setAttribute('aria-label', 'Dismiss');
+  close.addEventListener('click', () => item.remove());
+  actions.append(close);
+
+  item.append(body, actions);
+  root.append(item);
+  while (root.children.length > MAX_NOTICES) root.firstElementChild.remove();
+  if (kind === 'info') {
+    setTimeout(() => item.remove(), AUTO_HIDE_MS);
+  }
+  return item;
+};
+
+export const clearNotices = (root) => root.replaceChildren();
+
+export const showLogDialog = (dialog, { name, path, text, onOpenExternally }) => {
+  dialog.querySelector('[data-slot="name"]').textContent = name;
+  dialog.querySelector('[data-slot="path"]').textContent = path ?? '';
+  const pre = dialog.querySelector('[data-slot="log"]');
+  pre.textContent = text === '' ? '(the log is empty)' : text;
+  const external = dialog.querySelector('[data-action="open-external"]');
+  external.onclick = onOpenExternally;
+  dialog.showModal();
+  pre.scrollTop = pre.scrollHeight;
 };
 
 export const showStopDialog = (dialog, { name, pid, command }) => {

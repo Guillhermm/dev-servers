@@ -9,6 +9,16 @@ public final class Service: @unchecked Sendable {
     private var entries: [RegistryEntry] = []
     private var loadError: String?
     private var started = Set<Int32>()
+    private var launches: [String: Launch] = [:]
+    private var cachedEnvironment: [String: String]?
+
+    /// The latest start of each entry, kept after the process ends so the page can say why.
+    struct Launch {
+        let pid: Int32
+        var exit: ExitReport?
+        var logTail: [String] = []
+        var stopRequested = false
+    }
 
     private let registryURL: URL
     private let logDirectory: URL
@@ -19,6 +29,7 @@ public final class Service: @unchecked Sendable {
     private let openURL: Opener
     private let openLog: Opener
     private let grace: TimeInterval
+    private let resolveEnvironment: () -> [String: String]
 
     public init(
         registryURL: URL,
@@ -28,6 +39,7 @@ public final class Service: @unchecked Sendable {
         grace: TimeInterval = 5,
         listeners: @escaping () -> [Listener] = { ListenerProbe.current() },
         groupOf: @escaping (Int32) -> Int32? = ProcessProbe.group(of:),
+        environment: @escaping () -> [String: String] = { ShellEnvironment.resolve() },
         openURL: @escaping Opener,
         openLog: @escaping Opener
     ) {
@@ -38,6 +50,7 @@ public final class Service: @unchecked Sendable {
         self.grace = grace
         self.listeners = listeners
         self.groupOf = groupOf
+        self.resolveEnvironment = environment
         self.openURL = openURL
         self.openLog = openLog
         reload()
@@ -50,11 +63,26 @@ public final class Service: @unchecked Sendable {
         do {
             entries = try Registry.load(from: registryURL, home: home)
             loadError = nil
+        } catch RegistryError.unreadable where !FileManager.default.fileExists(atPath: registryURL.path) {
+            entries = []
+            loadError = "no registry at \(registryURL.path). Copy registry.example.json there and list your servers"
         } catch {
             entries = []
             loadError = "\(error)"
         }
+        cachedEnvironment = nil
         return loadError
+    }
+
+    /// The user's shell environment, resolved on first use and again after a reload, since
+    /// running the rc files costs about a second.
+    public func baseEnvironment() -> [String: String] {
+        lock.lock()
+        if let env = cachedEnvironment { lock.unlock(); return env }
+        lock.unlock()
+        let env = resolveEnvironment()
+        lock.lock(); cachedEnvironment = env; lock.unlock()
+        return env
     }
 
     /// Dispatches one bridge message. The result is plain JSON types, so WebKit can hand it to
@@ -71,7 +99,7 @@ public final class Service: @unchecked Sendable {
         if action == "list" { return snapshot.map(Self.describe) }
         if action == "status" { return status(snapshot) }
 
-        let known: Set<String> = ["start", "stop", "confirmStop", "open", "log"]
+        let known: Set<String> = ["start", "stop", "confirmStop", "open", "log", "tail"]
         guard known.contains(action) else { return failure("unknown action '\(action)'") }
         guard let id, let entry = snapshot.first(where: { $0.id == id }) else {
             return failure("unknown id '\(id ?? "")'")
@@ -84,6 +112,12 @@ public final class Service: @unchecked Sendable {
             guard let url = URL(string: entry.url) else { return failure("bad url") }
             if openURL(url) { return success() }
             return failure("could not open \(entry.url)")
+        case "tail":
+            let log = logURL(entry)
+            guard let text = ExitReport.readEnd(of: log, maxBytes: Self.tailBytes) else {
+                return failure("no log yet for \(entry.name): it is written when the app starts the server")
+            }
+            return ["ok": true, "text": text, "path": log.path]
         default:
             let log = logURL(entry)
             guard FileManager.default.fileExists(atPath: log.path) else { return failure("no log yet for \(entry.id)") }
@@ -91,6 +125,8 @@ public final class Service: @unchecked Sendable {
             return failure("could not open the log")
         }
     }
+
+    static let tailBytes = 64 * 1024
 
     public func logURL(_ entry: RegistryEntry) -> URL {
         logDirectory.appendingPathComponent("\(entry.id).log")
@@ -120,13 +156,32 @@ public final class Service: @unchecked Sendable {
     private func status(_ snapshot: [RegistryEntry]) -> [[String: Any]] {
         let table = listeners()
         let owned = ownedPIDs()
+        lock.lock(); let launchSnapshot = launches; lock.unlock()
         return snapshot.map { e in
-            guard let l = table.filter({ $0.port == e.port }).min(by: { $0.pid < $1.pid }) else {
-                return ["id": e.id, "listening": false, "pid": NSNull(), "command": NSNull(), "ownedByApp": false]
+            var row: [String: Any]
+            if let l = table.filter({ $0.port == e.port }).min(by: { $0.pid < $1.pid }) {
+                row = ["id": e.id, "listening": true, "pid": Int(l.pid), "command": l.command,
+                       "ownedByApp": ownerGroup(l.pid, owned) != nil]
+            } else {
+                row = ["id": e.id, "listening": false, "pid": NSNull(), "command": NSNull(), "ownedByApp": false]
             }
-            return ["id": e.id, "listening": true, "pid": Int(l.pid), "command": l.command,
-                    "ownedByApp": ownerGroup(l.pid, owned) != nil]
+            if let launch = launchSnapshot[e.id] {
+                row["launch"] = Self.describe(launch)
+            }
+            return row
         }
+    }
+
+    static func describe(_ l: Launch) -> [String: Any] {
+        var d: [String: Any] = ["pid": Int(l.pid), "running": l.exit == nil]
+        if let exit = l.exit {
+            d["reason"] = exit.reason
+            d["code"] = exit.code.map { Int($0) } ?? NSNull()
+            d["signal"] = exit.signal.map { Int($0) } ?? NSNull()
+            d["expected"] = l.stopRequested
+            d["log"] = l.logTail
+        }
+        return d
     }
 
     private func start(_ e: RegistryEntry) -> [String: Any] {
@@ -134,11 +189,11 @@ public final class Service: @unchecked Sendable {
         if listeners().contains(where: { $0.port == e.port }) {
             return failure("port \(e.port) is already in use")
         }
-        let plan = LaunchPlan(entry: e, baseEnvironment: ProcessInfo.processInfo.environment)
+        let plan = LaunchPlan(entry: e, baseEnvironment: baseEnvironment())
         do {
             let pid = try Spawner.spawn(plan, log: logURL(e))
-            lock.lock(); started.insert(pid); lock.unlock()
-            reapWhenDone(pid)
+            lock.lock(); started.insert(pid); launches[e.id] = Launch(pid: pid); lock.unlock()
+            reapWhenDone(pid, id: e.id)
             return ["ok": true, "pid": Int(pid)]
         } catch {
             return failure("\(error)")
@@ -176,16 +231,30 @@ public final class Service: @unchecked Sendable {
 
     /// Without this the spawned child stays a zombie until the app quits. The pid leaves the
     /// started set as it is reaped, so a later process reusing it is never taken for the app's.
-    private func reapWhenDone(_ pid: Int32) {
+    private func reapWhenDone(_ pid: Int32, id: String) {
         DispatchQueue.global(qos: .utility).async { [weak self] in
             var status: Int32 = 0
             while waitpid(pid, &status, 0) == -1 && errno == EINTR {}
             guard let self else { return }
-            self.lock.lock(); self.started.remove(pid); self.lock.unlock()
+            let report = ExitReport(waitStatus: status)
+            let entry = self.lock.withLock { self.entries.first { $0.id == id } }
+            let tail = entry.map { ExitReport.tail(of: self.logURL($0)) } ?? []
+            self.lock.lock()
+            self.started.remove(pid)
+            if self.launches[id]?.pid == pid {
+                self.launches[id]?.exit = report
+                self.launches[id]?.logTail = tail
+            }
+            self.lock.unlock()
         }
     }
 
     private func terminate(_ pid: Int32, _ e: RegistryEntry, group: Int32?) -> [String: Any] {
+        lock.lock()
+        if let launch = launches[e.id], launch.pid == pid || launch.pid == group {
+            launches[e.id]?.stopRequested = true
+        }
+        lock.unlock()
         let freed = Terminator.stop(pid: pid, port: e.port, group: group, grace: grace, listeners: listeners)
         return freed ? ["ok": true, "pid": Int(pid)] : failure("port \(e.port) is still in use after SIGKILL")
     }

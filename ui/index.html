@@ -15,7 +15,6 @@
   <input id="query" type="search" placeholder="Filter by name, port or note" aria-label="Filter servers" autocomplete="off">
   <label class="toggle"><input id="running-only" type="checkbox"> Running only</label>
 </header>
-<p id="notice" class="notice" role="status" hidden></p>
 <main>
   <ul id="list" class="list"></ul>
 </main>
@@ -30,6 +29,18 @@
     </div>
   </form>
 </dialog>
+<dialog id="log-dialog" class="log-dialog">
+  <form method="dialog">
+    <h2>Log: <span data-slot="name"></span></h2>
+    <p class="log-path" data-slot="path"></p>
+    <pre class="log-text" data-slot="log" tabindex="0"></pre>
+    <div class="dialog-actions">
+      <button class="btn" type="button" data-action="open-external">Open in Console</button>
+      <button class="btn" value="close" autofocus>Close</button>
+    </div>
+  </form>
+</dialog>
+<footer id="notices" class="notices" aria-live="polite"></footer>
 <script type="module" src="app.js"></script>
 </body>
 </html>

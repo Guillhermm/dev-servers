@@ -9,8 +9,8 @@ import Testing
 
     @Test func argvUsesPositionalParameters() {
         let p = LaunchPlan(entry: entry(), baseEnvironment: [:])
-        #expect(p.executable == "/bin/zsh")
-        #expect(p.argv == ["/bin/zsh", "-lc", "cd -- \"$1\" || exit 1; shift; exec \"$@\"", "_", "/Users/t/p", "npm", "run", "dev"])
+        #expect(p.executable == "/bin/sh")
+        #expect(p.argv == ["/bin/sh", "-c", "cd -- \"$1\" || exit 1; shift; exec \"$@\"", "_", "/Users/t/p", "npm", "run", "dev"])
     }
 
     @Test func hostileValuesStayInsideOneArgument() {

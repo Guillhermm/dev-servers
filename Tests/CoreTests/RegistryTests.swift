@@ -110,4 +110,13 @@ private func parse(_ entries: String...) throws -> [RegistryEntry] {
         #expect(throws: RegistryError.self) { try Registry.parse(Data("[{\"id\":\"a\"}]".utf8), home: home) }
         #expect(throws: RegistryError.self) { try Registry.parse(Data("nope".utf8), home: home) }
     }
+
+    @Test func shippedExampleIsValid() throws {
+        let example = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("registry.example.json")
+        let entries = try Registry.load(from: example, home: "/Users/you")
+        #expect(entries.contains { !$0.managed })
+    }
 }
+

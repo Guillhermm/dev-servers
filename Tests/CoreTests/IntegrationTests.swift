@@ -42,6 +42,7 @@ private func waitFor(_ timeout: TimeInterval = 20, _ cond: () -> Bool) -> Bool {
         let logs = dir.appendingPathComponent("logs")
 
         let svc = Service(registryURL: reg, logDirectory: logs, grace: 5,
+                          environment: { ProcessInfo.processInfo.environment },
                           openURL: { _ in true }, openLog: { _ in true })
 
         let started = svc.handle(action: "start", id: "it-http") as! [String: Any]
@@ -95,6 +96,7 @@ private func waitFor(_ timeout: TimeInterval = 20, _ cond: () -> Bool) -> Bool {
         #expect(waitFor { ListenerProbe.current().contains { $0.port == port } })
 
         let svc = Service(registryURL: reg, logDirectory: dir.appendingPathComponent("logs"), grace: 5,
+                          environment: { ProcessInfo.processInfo.environment },
                           openURL: { _ in true }, openLog: { _ in true })
         let first = svc.handle(action: "stop", id: "foreign") as! [String: Any]
         #expect(first["needsConfirmation"] as? Bool == true)
@@ -126,6 +128,7 @@ private func waitFor(_ timeout: TimeInterval = 20, _ cond: () -> Bool) -> Bool {
         let reg = dir.appendingPathComponent("registry.json")
         try json.write(to: reg, atomically: true, encoding: .utf8)
         let svc = Service(registryURL: reg, logDirectory: dir.appendingPathComponent("logs"), grace: 5,
+                          environment: { ProcessInfo.processInfo.environment },
                           openURL: { _ in true }, openLog: { _ in true })
 
         let started = svc.handle(action: "start", id: "wrapped") as! [String: Any]
@@ -161,6 +164,7 @@ private func waitFor(_ timeout: TimeInterval = 20, _ cond: () -> Bool) -> Bool {
         let pid = victim.processIdentifier
         let svc = Service(registryURL: reg, logDirectory: dir, grace: 0.2,
                           listeners: { [Listener(pid: pid, command: "sleep", port: port, address: "*")] },
+                          environment: { ProcessInfo.processInfo.environment },
                           openURL: { _ in true }, openLog: { _ in true })
         let reply = svc.handle(action: "confirmStop", id: "a", pid: nil) as! [String: Any]
         #expect(reply["ok"] as? Bool == false)
@@ -189,7 +193,8 @@ private func waitFor(_ timeout: TimeInterval = 20, _ cond: () -> Bool) -> Bool {
         let reg = dir.appendingPathComponent("registry.json")
         try #"[{"id":"a","name":"A","path":"\#(dir.path)","cwd":"\#(dir.path)","port":8499,"start":["true"]}]"#
             .write(to: reg, atomically: true, encoding: .utf8)
-        let svc = Service(registryURL: reg, logDirectory: dir, openURL: { _ in true }, openLog: { _ in true })
+        let svc = Service(registryURL: reg, logDirectory: dir, environment: { ProcessInfo.processInfo.environment },
+                          openURL: { _ in true }, openLog: { _ in true })
 
         #expect((svc.handle(action: "explode", id: "a") as! [String: Any])["ok"] as? Bool == false)
         #expect((svc.handle(action: "start", id: "nope") as! [String: Any])["ok"] as? Bool == false)
@@ -200,5 +205,50 @@ private func waitFor(_ timeout: TimeInterval = 20, _ cond: () -> Bool) -> Bool {
         try "[]x".write(to: reg, atomically: true, encoding: .utf8)
         #expect(svc.reload() != nil)
         #expect((svc.handle(action: "list", id: nil) as! [String: Any])["ok"] as? Bool == false)
+    }
+
+    @Test func failedStartReportsWhyAndStopIsMarkedExpected() throws {
+        let dir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".dev-servers-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let port = freePort()
+        let reg = dir.appendingPathComponent("registry.json")
+        try """
+        [{"id":"broken","name":"B","path":"\(dir.path)","cwd":"\(dir.path)","port":\(port),"start":["no-such-tool-dev-servers"]},
+         {"id":"ok","name":"OK","path":"\(dir.path)","cwd":"\(dir.path)","port":\(freePort()),"start":["/bin/sleep","30"]}]
+        """.write(to: reg, atomically: true, encoding: .utf8)
+        let logs = dir.appendingPathComponent("logs")
+        let svc = Service(registryURL: reg, logDirectory: logs,
+                          environment: { ["PATH": "/usr/bin:/bin"] },
+                          openURL: { _ in true }, openLog: { _ in true })
+
+        let started = svc.handle(action: "start", id: "broken") as! [String: Any]
+        try #require(started["ok"] as? Bool == true, "\(started)")
+        let launch = { (id: String) -> [String: Any]? in
+            let rows = svc.handle(action: "status", id: nil) as! [[String: Any]]
+            return rows.first { $0["id"] as? String == id }?["launch"] as? [String: Any]
+        }
+        #expect(waitFor(5) { launch("broken")?["running"] as? Bool == false })
+        let report = try #require(launch("broken"))
+        #expect(report["code"] as? Int == 127)
+        #expect((report["reason"] as? String)?.contains("command not found") == true)
+        #expect(report["expected"] as? Bool == false)
+        #expect((report["log"] as? [String])?.joined().contains("no-such-tool-dev-servers") == true)
+
+        let tail = svc.handle(action: "tail", id: "broken") as! [String: Any]
+        #expect(tail["ok"] as? Bool == true)
+        #expect((tail["text"] as? String)?.contains("not found") == true)
+        let mode = try FileManager.default.attributesOfItem(atPath: logs.appendingPathComponent("broken.log").path)[.posixPermissions] as? Int
+        #expect(mode == 0o600)
+
+        // A log that was never written is a clear error, not an empty viewer.
+        #expect((svc.handle(action: "tail", id: "ok") as! [String: Any])["ok"] as? Bool == false)
+    }
+
+    @Test func missingRegistryExplainsWhatToDo() {
+        let reg = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("absent-\(UUID().uuidString).json")
+        let svc = Service(registryURL: reg, environment: { [:] }, openURL: { _ in true }, openLog: { _ in true })
+        let reply = svc.handle(action: "list", id: nil) as! [String: Any]
+        #expect((reply["error"] as? String)?.contains("registry.example.json") == true)
     }
 }

@@ -18,6 +18,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
                 return true
             })
 
+        warmEnvironment()
+
         let cfg = WKWebViewConfiguration()
         cfg.userContentController.addScriptMessageHandler(
             Bridge(service: service), contentWorld: .page, name: Bridge.name)
@@ -55,7 +57,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
     @objc func reload() {
         service.reload()
+        warmEnvironment()
         load()
+    }
+
+    /// Reads the login shell's environment ahead of the first Start, which would otherwise wait for it.
+    private func warmEnvironment() {
+        let service = self.service!
+        DispatchQueue.global(qos: .utility).async { _ = service.baseEnvironment() }
     }
 
     func webView(_ w: WKWebView, decidePolicyFor action: WKNavigationAction,

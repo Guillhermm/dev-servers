@@ -12,6 +12,10 @@
   --warn-bg: #fdf3dc;
   --bad-bg: #fbe4e4;
   --chip: #ececf0;
+  --start: #1d7a3c; --start-bg: #e4f4e9; --start-line: #9fd2ae;
+  --stop: #b42318; --stop-bg: #fde8e6; --stop-line: #f1aca5;
+  --open: #0a5bc4; --open-bg: #e4eefc; --open-line: #a6c6f2;
+  --log: #8a5300; --log-bg: #fdf1d6; --log-line: #e8c77d;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -29,6 +33,10 @@
     --warn-bg: #3a3020;
     --bad-bg: #3d2325;
     --chip: #38383d;
+    --start: #5fd68a; --start-bg: #1d3326; --start-line: #2f5a3e;
+    --stop: #ff8a80; --stop-bg: #3d2325; --stop-line: #6b3a3d;
+    --open: #7ab4ff; --open-bg: #1e2d44; --open-line: #34507a;
+    --log: #f2c46b; --log-bg: #3a3020; --log-line: #6a5630;
   }
 }
 * { box-sizing: border-box; }
@@ -65,17 +73,52 @@ h1 { margin: 0; font-size: 1rem; font-weight: 600; }
   font: inherit;
 }
 .toggle { display: flex; align-items: center; gap: 0.35rem; color: var(--muted); white-space: nowrap; }
-.notice {
-  margin: 0.75rem 1rem 0;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.5rem;
-  background: var(--warn-bg);
-  color: var(--text);
-  border: 1px solid var(--warn);
-}
-.notice[data-kind="error"] { background: var(--bad-bg); border-color: var(--bad); }
-.notice[data-kind="info"] { background: var(--chip); border-color: var(--line); }
 main { padding: 0.75rem 1rem 1.5rem; }
+.notices {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0 1rem 0.75rem;
+}
+.notices:empty { display: none; }
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-left-width: 0.25rem;
+  border-radius: 0.5rem;
+  background: var(--surface);
+  box-shadow: 0 0.25rem 1rem rgb(0 0 0 / 0.12);
+}
+.toast[data-kind="error"] { border-color: var(--bad); background: var(--bad-bg); }
+.toast[data-kind="warn"] { border-color: var(--warn); background: var(--warn-bg); }
+.toast-body { flex: 1; min-width: 0; }
+.toast-text { margin: 0; }
+.toast-log {
+  margin: 0.3rem 0 0;
+  padding: 0.3rem 0.5rem;
+  border-radius: 0.3rem;
+  background: rgb(0 0 0 / 0.06);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.toast-actions { display: flex; align-items: center; gap: 0.3rem; }
+.toast-close {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 0;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.toast-close:hover { background: var(--chip); color: var(--text); }
 .list {
   margin: 0;
   padding: 0;
@@ -127,8 +170,17 @@ main { padding: 0.75rem 1rem 1.5rem; }
   cursor: pointer;
 }
 .btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-.btn:disabled { opacity: 0.4; cursor: default; }
+.btn:disabled { opacity: 0.35; cursor: default; }
 .btn:focus-visible, #query:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn-start, .btn-stop, .btn-open, .btn-log { font-weight: 500; }
+.btn-start { color: var(--start); background: var(--start-bg); border-color: var(--start-line); }
+.btn-stop { color: var(--stop); background: var(--stop-bg); border-color: var(--stop-line); }
+.btn-open { color: var(--open); background: var(--open-bg); border-color: var(--open-line); }
+.btn-log { color: var(--log); background: var(--log-bg); border-color: var(--log-line); }
+.btn-start:hover:not(:disabled) { color: var(--start); border-color: var(--start); }
+.btn-stop:hover:not(:disabled) { color: var(--stop); border-color: var(--stop); }
+.btn-open:hover:not(:disabled) { color: var(--open); border-color: var(--open); }
+.btn-log:hover:not(:disabled) { color: var(--log); border-color: var(--log); }
 .btn-danger { background: var(--bad); border-color: var(--bad); color: #fff; }
 .btn-danger:hover:not(:disabled) { color: #fff; filter: brightness(1.1); }
 .empty { padding: 1rem; color: var(--muted); text-align: center; }
@@ -143,6 +195,9 @@ dialog {
 dialog::backdrop { background: rgb(0 0 0 / 0.4); }
 dialog h2 { margin: 0 0 0.5rem; font-size: 0.9375rem; }
 dialog pre { margin: 0.5rem 0; padding: 0.5rem; border-radius: 0.4rem; background: var(--chip); white-space: pre-wrap; overflow-wrap: anywhere; }
+.log-dialog { width: min(56rem, 92vw); max-width: none; }
+.log-path { margin: 0 0 0.5rem; color: var(--muted); font-size: 0.75rem; overflow-wrap: anywhere; }
+.log-text { height: min(28rem, 60vh); overflow: auto; margin: 0 0 0.75rem; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 @media (max-width: 40rem) {
   .row { grid-template-columns: auto 1fr; }

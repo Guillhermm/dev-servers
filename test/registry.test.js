@@ -5,62 +5,63 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const registry = JSON.parse(readFileSync(join(root, 'registry.json'), 'utf8'));
-const { servers } = registry;
+const read = (name) => JSON.parse(readFileSync(join(root, name), 'utf8'));
 
-// Framework default ports that several projects legitimately share (documented in notes).
-const SHARED_PORTS = new Set([5173, 4321]);
+// The example ships with the repo; registry.json is each user's own and is gitignored, so it is
+// checked only where it exists.
+const registries = [['registry.example.json', read('registry.example.json')]];
+if (existsSync(join(root, 'registry.json'))) registries.push(['registry.json', read('registry.json')]);
 
-test('registry has version 1 and servers', () => {
-  assert.equal(registry.version, 1);
-  assert.ok(Array.isArray(servers) && servers.length > 0);
-});
+for (const [file, registry] of registries) {
+  const { servers } = registry;
 
-test('ids are valid and unique', () => {
-  const ids = servers.map((s) => s.id);
-  for (const id of ids) assert.match(id, /^[a-z0-9-]+$/);
-  assert.equal(new Set(ids).size, ids.length);
-});
+  test(`${file}: version 1 with servers`, () => {
+    assert.equal(registry.version, 1);
+    assert.ok(Array.isArray(servers) && servers.length > 0);
+  });
 
-test('every entry has the required fields', () => {
-  for (const s of servers) {
-    for (const key of ['name', 'path', 'cwd', 'host', 'url', 'notes']) assert.equal(typeof s[key], 'string', `${s.id}.${key}`);
-    assert.ok(Number.isInteger(s.port) && s.port > 0 && s.port < 65536, `${s.id} port`);
-    assert.equal(typeof s.managed, 'boolean', `${s.id}.managed`);
-    assert.equal(typeof s.env, 'object', `${s.id}.env`);
-    assert.equal(s.health.type, 'tcp');
-    assert.ok(URL.canParse(s.url), `${s.id} url`);
-  }
-});
+  test(`${file}: ids are valid and unique`, () => {
+    const ids = servers.map((s) => s.id);
+    for (const id of ids) assert.match(id, /^[a-z0-9-]+$/);
+    assert.equal(new Set(ids).size, ids.length);
+  });
 
-test('ports are unique except documented shared defaults', () => {
-  const byPort = new Map();
-  for (const s of servers) byPort.set(s.port, [...(byPort.get(s.port) ?? []), s]);
-  for (const [port, entries] of byPort) {
-    if (entries.length === 1) continue;
-    assert.ok(SHARED_PORTS.has(port), `port ${port} is shared by ${entries.map((e) => e.id)}`);
-    for (const e of entries) assert.match(e.notes, /shared/i, `${e.id} must say the port is shared`);
-  }
-});
+  test(`${file}: every entry has the required fields`, () => {
+    for (const s of servers) {
+      for (const key of ['name', 'path', 'cwd', 'host', 'url', 'notes']) assert.equal(typeof s[key], 'string', `${s.id}.${key}`);
+      assert.ok(Number.isInteger(s.port) && s.port >= 1024 && s.port < 65536, `${s.id} port`);
+      assert.equal(typeof s.managed, 'boolean', `${s.id}.managed`);
+      assert.equal(typeof s.env, 'object', `${s.id}.env`);
+      assert.equal(s.health.type, 'tcp');
+      assert.ok(['http:', 'https:'].includes(new URL(s.url).protocol), `${s.id} url`);
+    }
+  });
 
-test('start is a non-empty argv of strings', () => {
-  for (const s of servers) {
-    assert.ok(Array.isArray(s.start) && s.start.length > 0, `${s.id} start`);
-    assert.ok(s.start.every((part) => typeof part === 'string' && part !== ''), `${s.id} start parts`);
-  }
-});
+  test(`${file}: a port is shared only when every entry on it says so`, () => {
+    const byPort = new Map();
+    for (const s of servers) byPort.set(s.port, [...(byPort.get(s.port) ?? []), s]);
+    for (const [port, entries] of byPort) {
+      if (entries.length === 1) continue;
+      for (const e of entries) assert.match(e.notes, /shared/i, `port ${port}: ${e.id} must say the port is shared`);
+    }
+  });
 
-test('paths and cwd exist on disk', () => {
-  for (const s of servers) {
-    assert.ok(existsSync(s.path), `${s.id} path ${s.path}`);
-    assert.ok(existsSync(s.cwd), `${s.id} cwd ${s.cwd}`);
-  }
-});
+  test(`${file}: start is a non-empty argv of strings`, () => {
+    for (const s of servers) {
+      assert.ok(Array.isArray(s.start) && s.start.length > 0, `${s.id} start`);
+      assert.ok(s.start.every((part) => typeof part === 'string' && part !== ''), `${s.id} start parts`);
+    }
+  });
+}
 
-test('unmanaged services are present', () => {
-  const unmanaged = servers.filter((s) => !s.managed).map((s) => s.id);
-  for (const id of ['ollama', 'open-webui', 'caddy']) assert.ok(unmanaged.includes(id), id);
-});
+if (registries.length > 1) {
+  test('registry.json: paths and cwd exist on disk', () => {
+    for (const s of read('registry.json').servers) {
+      assert.ok(existsSync(s.path), `${s.id} path ${s.path}`);
+      assert.ok(existsSync(s.cwd), `${s.id} cwd ${s.cwd}`);
+    }
+  });
+}
 
 test('no innerHTML anywhere in ui/', () => {
   const dir = join(root, 'ui');
