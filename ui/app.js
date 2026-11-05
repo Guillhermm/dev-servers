@@ -16,7 +16,7 @@ const logDialog = $('#log-dialog');
 
 const send = (action, payload = {}) => bridge.postMessage({ action, ...payload });
 
-const view = { list: [], statuses: [], busy: new Set(), starting: new Map(), notified: new Set() };
+const view = { list: [], statuses: [], busy: new Set(), starting: new Map(), notified: new Set(), loadedAt: Date.now() };
 
 const nameOf = (id) => view.list.find((server) => server.id === id)?.name ?? id;
 
@@ -57,6 +57,7 @@ const reportLaunches = () => {
   const { notices, settled } = launchNotices(view.list, view.statuses, {
     starting: view.starting,
     notified: view.notified,
+    since: view.loadedAt,
   });
   for (const id of settled) view.starting.delete(id);
   for (const notice of notices) {

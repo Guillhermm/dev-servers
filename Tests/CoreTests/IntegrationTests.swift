@@ -1,10 +1,20 @@
+#if canImport(Darwin)
 import Darwin
+#else
+import Glibc
+#endif
 import Foundation
 import Testing
 @testable import Core
 
+#if canImport(Darwin)
+private let streamSocket = SOCK_STREAM
+#else
+private let streamSocket = Int32(SOCK_STREAM.rawValue)
+#endif
+
 private func freePort() -> Int {
-    let fd = socket(AF_INET, SOCK_STREAM, 0)
+    let fd = socket(AF_INET, streamSocket, 0)
     defer { close(fd) }
     var addr = sockaddr_in()
     addr.sin_family = sa_family_t(AF_INET)
@@ -50,7 +60,7 @@ private func waitFor(_ timeout: TimeInterval = 20, _ cond: () -> Bool) -> Bool {
         let pid = Int32(started["pid"] as! Int)
         defer { kill(pid, SIGKILL) }
 
-        #expect(waitFor { ListenerProbe.current().contains { $0.port == port } })
+        #expect(waitFor { Platform.listeners().contains { $0.port == port } })
 
         let status = (svc.handle(action: "status", id: nil) as! [[String: Any]])[0]
         #expect(status["listening"] as? Bool == true)
@@ -68,7 +78,7 @@ private func waitFor(_ timeout: TimeInterval = 20, _ cond: () -> Bool) -> Bool {
         let stopped = svc.handle(action: "stop", id: "it-http") as! [String: Any]
         #expect(stopped["ok"] as? Bool == true)
         #expect(Date().timeIntervalSince(t0) < 2)
-        #expect(waitFor { !ListenerProbe.current().contains { $0.port == port } })
+        #expect(waitFor { !Platform.listeners().contains { $0.port == port } })
     }
 
     @Test func foreignListenerNeedsConfirmationThenStops() throws {
@@ -93,7 +103,7 @@ private func waitFor(_ timeout: TimeInterval = 20, _ cond: () -> Bool) -> Bool {
         p.standardError = FileHandle.nullDevice
         try p.run()
         defer { p.terminate() }
-        #expect(waitFor { ListenerProbe.current().contains { $0.port == port } })
+        #expect(waitFor { Platform.listeners().contains { $0.port == port } })
 
         let svc = Service(registryURL: reg, logDirectory: dir.appendingPathComponent("logs"), grace: 5,
                           environment: { ProcessInfo.processInfo.environment },
@@ -107,7 +117,7 @@ private func waitFor(_ timeout: TimeInterval = 20, _ cond: () -> Bool) -> Bool {
 
         let ok = svc.handle(action: "confirmStop", id: "foreign", pid: Int32(pid)) as! [String: Any]
         #expect(ok["ok"] as? Bool == true)
-        #expect(waitFor { !ListenerProbe.current().contains { $0.port == port } })
+        #expect(waitFor { !Platform.listeners().contains { $0.port == port } })
     }
 
     @Test func serverBehindAWrapperIsOwnedAndStoppedWithItsGroup() throws {
@@ -135,7 +145,7 @@ private func waitFor(_ timeout: TimeInterval = 20, _ cond: () -> Bool) -> Bool {
         try #require(started["ok"] as? Bool == true, "\(started)")
         let wrapper = Int32(started["pid"] as! Int)
         defer { killpg(wrapper, SIGKILL) }
-        #expect(waitFor { ListenerProbe.current().contains { $0.port == port } })
+        #expect(waitFor { Platform.listeners().contains { $0.port == port } })
 
         let status = (svc.handle(action: "status", id: nil) as! [[String: Any]])[0]
         #expect(status["pid"] as? Int != Int(wrapper))
@@ -233,6 +243,7 @@ private func waitFor(_ timeout: TimeInterval = 20, _ cond: () -> Bool) -> Bool {
         #expect(report["code"] as? Int == 127)
         #expect((report["reason"] as? String)?.contains("command not found") == true)
         #expect(report["expected"] as? Bool == false)
+        #expect((report["endedAt"] as? Int ?? 0) > Int(Date().addingTimeInterval(-60).timeIntervalSince1970 * 1000))
         #expect((report["log"] as? [String])?.joined().contains("no-such-tool-dev-servers") == true)
 
         let tail = svc.handle(action: "tail", id: "broken") as! [String: Any]

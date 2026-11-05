@@ -16,6 +16,7 @@ public final class Service: @unchecked Sendable {
     struct Launch {
         let pid: Int32
         var exit: ExitReport?
+        var endedAt: Date?
         var logTail: [String] = []
         var stopRequested = false
     }
@@ -33,11 +34,11 @@ public final class Service: @unchecked Sendable {
 
     public init(
         registryURL: URL,
-        logDirectory: URL = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Logs/Dev Servers"),
+        logDirectory: URL = Platform.logDirectory,
         home: String = NSHomeDirectory(),
         uid: UInt32 = getuid(),
         grace: TimeInterval = 5,
-        listeners: @escaping () -> [Listener] = { ListenerProbe.current() },
+        listeners: @escaping () -> [Listener] = { Platform.listeners() },
         groupOf: @escaping (Int32) -> Int32? = ProcessProbe.group(of:),
         environment: @escaping () -> [String: String] = { ShellEnvironment.resolve() },
         openURL: @escaping Opener,
@@ -180,6 +181,7 @@ public final class Service: @unchecked Sendable {
             d["signal"] = exit.signal.map { Int($0) } ?? NSNull()
             d["expected"] = l.stopRequested
             d["log"] = l.logTail
+            d["endedAt"] = Int((l.endedAt ?? Date()).timeIntervalSince1970 * 1000)
         }
         return d
     }
@@ -205,7 +207,7 @@ public final class Service: @unchecked Sendable {
         let table = listeners()
         let onPort = table.filter { $0.port == e.port }
         var facts: [Int32: ProcessFacts] = [:]
-        for l in onPort { facts[l.pid] = ProcessProbe.facts(pid: l.pid) }
+        for l in onPort { facts[l.pid] = Platform.processFacts(pid: l.pid) }
         let owned = ownedPIDs()
         let startedHere = Set(onPort.map(\.pid).filter { ownerGroup($0, owned) != nil })
 
@@ -243,6 +245,7 @@ public final class Service: @unchecked Sendable {
             self.started.remove(pid)
             if self.launches[id]?.pid == pid {
                 self.launches[id]?.exit = report
+                self.launches[id]?.endedAt = Date()
                 self.launches[id]?.logTail = tail
             }
             self.lock.unlock()

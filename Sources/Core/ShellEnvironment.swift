@@ -33,7 +33,7 @@ public enum ShellEnvironment {
         timeout: TimeInterval = 10,
         fallback: [String: String] = ProcessInfo.processInfo.environment
     ) -> [String: String] {
-        let sh = (shell?.hasPrefix("/") == true) ? shell! : "/bin/zsh"
+        let sh = (shell?.hasPrefix("/") == true) ? shell! : Platform.defaultShell
         let argv = command(shell: sh)
         let p = Process()
         p.executableURL = URL(fileURLWithPath: argv[0])
@@ -45,18 +45,19 @@ public enum ShellEnvironment {
         p.standardOutput = out
         do { try p.run() } catch { return fallback }
 
-        var data = Data()
-        let reader = DispatchQueue(label: "shell-env")
+        final class Output: @unchecked Sendable { var data = Data() }
+        let output = Output()
         let done = DispatchSemaphore(value: 0)
-        reader.async {
-            data = out.fileHandleForReading.readDataToEndOfFile()
+        DispatchQueue(label: "shell-env").async {
+            output.data = out.fileHandleForReading.readDataToEndOfFile()
             done.signal()
         }
+        // The semaphore orders the write above before this read.
         if done.wait(timeout: .now() + timeout) == .timedOut {
             p.terminate()
             return fallback
         }
         p.waitUntilExit()
-        return parse(data) ?? fallback
+        return parse(output.data) ?? fallback
     }
 }

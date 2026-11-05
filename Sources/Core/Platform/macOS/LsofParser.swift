@@ -1,20 +1,7 @@
 import Foundation
 
-public struct Listener: Equatable {
-    public let pid: Int32
-    public let command: String
-    public let port: Int
-    public let address: String
-
-    public init(pid: Int32, command: String, port: Int, address: String) {
-        self.pid = pid
-        self.command = command
-        self.port = port
-        self.address = address
-    }
-}
-
-public enum ListenerTable {
+/// Pure parsing, compiled on every platform so its tests run anywhere.
+public enum LsofParser {
     /// Parses `lsof -F pcn` output: `p<pid>`, `c<command>`, then one `n<addr>:<port>` per socket.
     public static func parse(_ output: String) -> [Listener] {
         var result: [Listener] = []
@@ -66,24 +53,5 @@ public enum ListenerTable {
             }
         }
         return String(decoding: bytes, as: UTF8.self)
-    }
-}
-
-public enum ListenerProbe {
-    public static let lsofPath = "/usr/sbin/lsof"
-
-    /// One lsof call for every TCP listener owned by the current user.
-    public static func current(uid: uid_t = getuid()) -> [Listener] {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: lsofPath)
-        p.arguments = ["-nP", "-iTCP", "-sTCP:LISTEN", "-a", "-u", String(uid), "-F", "pcn"]
-        let pipe = Pipe()
-        p.standardOutput = pipe
-        p.standardError = FileHandle.nullDevice
-        p.standardInput = FileHandle.nullDevice
-        do { try p.run() } catch { return [] }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
-        return ListenerTable.parse(String(decoding: data, as: UTF8.self))
     }
 }

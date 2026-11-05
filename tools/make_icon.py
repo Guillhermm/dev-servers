@@ -2,9 +2,10 @@
 """Generate the Dock icon for the Dev Servers app.
 
 Draws three stacked server rows with status dots in pure Python, no image
-libraries, then hands the PNGs to macOS `iconutil` to build the .icns.
+libraries. On macOS the PNGs go to `iconutil` to build the .icns; on Linux one PNG is enough.
 
-    python3 tools/make_icon.py
+    python3 tools/make_icon.py            # macOS .icns into the app bundle
+    python3 tools/make_icon.py --png OUT  # one 256 px PNG (Linux)
 """
 
 from __future__ import annotations
@@ -111,6 +112,12 @@ def draw(size: int):
 
 
 def main() -> int:
+    if len(sys.argv) == 3 and sys.argv[1] == "--png":
+        out = Path(sys.argv[2])
+        out.parent.mkdir(parents=True, exist_ok=True)
+        write_png(out, draw(256), 256)
+        print(f"wrote {out}")
+        return 0
     if not shutil.which("iconutil"):
         print("iconutil not found (macOS only)", file=sys.stderr)
         return 1

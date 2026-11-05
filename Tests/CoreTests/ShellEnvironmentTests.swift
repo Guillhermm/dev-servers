@@ -26,15 +26,21 @@ import Testing
         #expect(Array(ShellEnvironment.command(shell: "/bin/zsh").prefix(2)) == ["/bin/zsh", "-ilc"])
     }
 
-    @Test func readsTheInteractiveRcFile() throws {
+    /// zsh reads .zshrc from ZDOTDIR; an interactive login bash reads ~/.bash_profile. Each is
+    /// checked where installed (macOS ships zsh, most Linux images only bash).
+    @Test(arguments: ["/bin/zsh", "/bin/bash"])
+    func readsTheInteractiveRcFile(shell: String) throws {
+        guard FileManager.default.isExecutableFile(atPath: shell) else { return }
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("shellenv-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
-        try "echo noise from rc\nexport DEV_SERVERS_PROBE=from-zshrc\n"
-            .write(to: dir.appendingPathComponent(".zshrc"), atomically: true, encoding: .utf8)
-        let env = ShellEnvironment.resolve(shell: "/bin/zsh", timeout: 10,
+        let rc = "echo noise from rc\nexport DEV_SERVERS_PROBE=from-rc\n"
+        for name in [".zshrc", ".bash_profile"] {
+            try rc.write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8)
+        }
+        let env = ShellEnvironment.resolve(shell: shell, timeout: 10,
                                            fallback: ["HOME": dir.path, "ZDOTDIR": dir.path, "PATH": "/usr/bin:/bin"])
-        #expect(env["DEV_SERVERS_PROBE"] == "from-zshrc")
+        #expect(env["DEV_SERVERS_PROBE"] == "from-rc")
     }
 
     @Test func hangingShellFallsBack() throws {

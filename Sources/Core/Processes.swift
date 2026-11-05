@@ -1,23 +1,13 @@
+#if canImport(Darwin)
 import Darwin
+#else
+import Glibc
+#endif
 import Foundation
 
+/// POSIX process queries that behave the same on macOS and Linux. What differs per system
+/// (who owns a pid, where it runs) lives in Platform.
 public enum ProcessProbe {
-    public static func facts(pid: Int32) -> ProcessFacts? {
-        var bsd = proc_bsdinfo()
-        let bsdSize = Int32(MemoryLayout<proc_bsdinfo>.size)
-        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &bsd, bsdSize) == bsdSize else { return nil }
-
-        var vnode = proc_vnodepathinfo()
-        let vnodeSize = Int32(MemoryLayout<proc_vnodepathinfo>.size)
-        var cwd: String?
-        if proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &vnode, vnodeSize) == vnodeSize {
-            cwd = withUnsafePointer(to: &vnode.pvi_cdir.vip_path) {
-                $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) { String(cString: $0) }
-            }
-        }
-        return ProcessFacts(uid: bsd.pbi_uid, cwd: cwd)
-    }
-
     public static func isAlive(_ pid: Int32) -> Bool {
         kill(pid, 0) == 0 || errno == EPERM
     }
@@ -35,7 +25,6 @@ public enum SpawnError: Error, CustomStringConvertible {
 }
 
 public enum Spawner {
-    public static let sessionLeaderFlag = Int32(0x0400)  // POSIX_SPAWN_SETSID
 
     /// Moves a previous log to `<log>.1`, then spawns the plan in its own session with
     /// stdin on /dev/null and stdout and stderr on the log.
@@ -52,14 +41,14 @@ public enum Spawner {
             try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: rotated.path)
         }
 
-        var actions: posix_spawn_file_actions_t?
+        var actions = Platform.blankFileActions
         posix_spawn_file_actions_init(&actions)
         defer { posix_spawn_file_actions_destroy(&actions) }
         posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
         posix_spawn_file_actions_addopen(&actions, 1, log.path, O_WRONLY | O_CREAT | O_TRUNC, 0o600)
         posix_spawn_file_actions_adddup2(&actions, 1, 2)
 
-        var attr: posix_spawnattr_t?
+        var attr = Platform.blankSpawnAttributes
         posix_spawnattr_init(&attr)
         defer { posix_spawnattr_destroy(&attr) }
         // posix_spawn inherits the caller's blocked and ignored signals; a test runner or app that
@@ -70,7 +59,7 @@ public enum Spawner {
         var all = sigset_t()
         sigfillset(&all)
         posix_spawnattr_setsigdefault(&attr, &all)
-        posix_spawnattr_setflags(&attr, Int16(sessionLeaderFlag | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETSIGDEF))
+        posix_spawnattr_setflags(&attr, Int16(Platform.spawnNewSession | Int32(POSIX_SPAWN_SETSIGMASK) | Int32(POSIX_SPAWN_SETSIGDEF)))
 
         let argv = plan.argv.map { strdup($0) } + [nil]
         let envp = plan.environment.map { strdup("\($0.key)=\($0.value)") } + [nil]
@@ -100,7 +89,7 @@ public enum Terminator {
         group: Int32? = nil,
         grace: TimeInterval = 5,
         poll: TimeInterval = 0.2,
-        listeners: () -> [Listener] = { ListenerProbe.current() }
+        listeners: () -> [Listener] = { Platform.listeners() }
     ) -> Bool {
         guard pid > 1 else { return false }
         let signal = { (sig: Int32) in

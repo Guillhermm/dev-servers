@@ -60,8 +60,9 @@ const logLines = (launch) => (Array.isArray(launch?.log) ? launch.log : []);
 
 // Turns each entry's latest launch into at most one notice. `starting` maps id to the time its
 // grace period ends; `notified` holds keys already shown, so a notice appears once per launch.
-// `settled` lists ids whose starting state should end now.
-export const launchNotices = (list, statuses, { starting = new Map(), notified = new Set(), now = Date.now() } = {}) => {
+// `settled` lists ids whose starting state should end now. Exits that ended before `since` (when
+// the page loaded) were already reported by an earlier page, so a reload does not repeat them.
+export const launchNotices = (list, statuses, { starting = new Map(), notified = new Set(), now = Date.now(), since = 0 } = {}) => {
   const byId = new Map(statuses.map((status) => [status.id, status]));
   const notices = [];
   const settled = [];
@@ -81,7 +82,7 @@ export const launchNotices = (list, statuses, { starting = new Map(), notified =
       }
       if (launch.code === 0 && !status.listening && wasStarting && until > now) continue;
       if (wasStarting) settled.push(server.id);
-      if (notified.has(key)) continue;
+      if (notified.has(key) || (launch.endedAt ?? Infinity) < since) continue;
       const text = wasStarting || launch.code === 0
         ? `${server.name} did not start: ${launch.code === 0 ? `it exited and nothing listens on ${port}` : launch.reason}.`
         : `${server.name} stopped unexpectedly: ${launch.reason}.`;

@@ -1,3 +1,8 @@
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 import Foundation
 
 /// Why a process the app started has ended, in words the user can act on.

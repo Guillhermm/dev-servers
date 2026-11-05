@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Dev Servers
+Comment=Start, stop and watch your local development servers
+Exec="@BIN@"
+Icon=systems.zenus.DevServers
+Terminal=false
+Categories=Development;
+StartupWMClass=systems.zenus.DevServers

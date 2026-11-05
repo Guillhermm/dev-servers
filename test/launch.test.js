@@ -26,6 +26,12 @@ test('a notice already shown is not repeated', () => {
   assert.equal(notices.length, 0);
 });
 
+test('an exit from before the page loaded is not repeated after a reload', () => {
+  const launch = { ...failed, endedAt: now - 1000 };
+  assert.equal(launchNotices(list, [{ id: 'a', listening: false, launch }], { now, since: now - 10 }).notices.length, 0);
+  assert.equal(launchNotices(list, [{ id: 'a', listening: false, launch }], { now, since: now - 5000 }).notices.length, 1);
+});
+
 test('a stop the user asked for says nothing', () => {
   const launch = { ...failed, code: null, signal: 15, expected: true, reason: 'killed by SIGTERM' };
   assert.equal(launchNotices(list, [{ id: 'a', listening: false, launch }], { now }).notices.length, 0);

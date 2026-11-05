@@ -65,11 +65,13 @@ private func parse(_ entries: String...) throws -> [RegistryEntry] {
         }
     }
 
-    @Test func realRegistryLoads() throws {
+    /// The user's own registry is gitignored, so a fresh clone has none to check.
+    @Test func localRegistryLoadsWhenPresent() throws {
         let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
-        let entries = try Registry.load(from: repo.appendingPathComponent("registry.json"))
-        #expect(!entries.isEmpty)
+        let local = repo.appendingPathComponent("registry.json")
+        guard FileManager.default.fileExists(atPath: local.path) else { return }
+        #expect(!(try Registry.load(from: local)).isEmpty)
     }
 
     @Test(arguments: ["relative/path", "/etc", "/Users/tester", "/Users/tester/../other/x", "/Users/testerx/p", "~/p"])

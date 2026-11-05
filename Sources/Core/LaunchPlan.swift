@@ -14,7 +14,7 @@ public struct LaunchPlan: Equatable {
 
     public init(entry: RegistryEntry, baseEnvironment: [String: String]) {
         executable = LaunchPlan.shell
-        argv = [LaunchPlan.shell, "-c", LaunchPlan.script, "_", entry.cwd] + entry.start
+        argv = [LaunchPlan.shell, "-c", LaunchPlan.script, "dev-servers", entry.cwd] + entry.start
         environment = baseEnvironment.merging(entry.env) { _, entryValue in entryValue }
     }
 }
